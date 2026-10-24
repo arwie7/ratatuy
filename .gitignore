@@ -1,0 +1,14 @@
+# dependencies and builds
+node_modules/
+dist/
+
+# secrets: real values never go into git
+.env
+*.local
+
+# OS and editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json

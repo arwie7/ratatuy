@@ -1,0 +1,153 @@
+openapi: 3.0.3
+info:
+  title: Ratatouille Booking API
+  version: 1.0.0
+  description: Приём заявок на бронь зала с сайта ресторана «Рататуй».
+servers:
+  - url: http://localhost:8080
+    description: Мок-сервер Prism (локальный запуск)
+  - url: https://dev-api.example.com
+    description: Dev API (адрес передаёт бэкенд)
+  - url: https://api.example.com
+    description: Prod API (адрес передаёт бэкенд)
+paths:
+  /api/booking-requests:
+    post:
+      operationId: createBookingRequest
+      summary: Создать заявку на бронь
+      description: >-
+        Заявка сохраняется со статусом pending, менеджер получает уведомление
+        и связывается с гостем. Заявка не является подтверждённой бронью.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BookingRequestInput'
+            example:
+              name: Иван
+              phone: '+79991234567'
+              date: '2026-11-20'
+              guestsCount: 25
+              eventType: banquet
+              hallId: big
+              comment: 'Повод: Юбилей'
+              captchaToken: token
+      responses:
+        '201':
+          description: Заявка принята
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookingRequestCreated'
+              example:
+                id: req_481
+                status: pending
+                createdAt: '2026-11-01T19:50:00+04:00'
+        '400':
+          description: Тело запроса не является JSON-объектом
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: BAD_REQUEST
+                message: Некорректный запрос
+        '422':
+          description: Ошибка валидации полей или капчи
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                validation:
+                  value:
+                    code: VALIDATION_ERROR
+                    message: Проверьте поля формы
+                    fields:
+                      phone: Укажите телефон в формате +79991234567
+                captchaFailed:
+                  value:
+                    code: CAPTCHA_FAILED
+                    message: Пройдите проверку ещё раз
+        '429':
+          description: Слишком много запросов
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: RATE_LIMITED
+                message: Слишком много попыток. Попробуйте позже
+        '500':
+          description: Внутренняя ошибка сервера
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: INTERNAL_ERROR
+                message: Не удалось сохранить заявку
+components:
+  schemas:
+    BookingRequestInput:
+      type: object
+      required: [name, phone, date, guestsCount, eventType, captchaToken]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: Имя гостя, 1–100 символов после trim
+        phone:
+          type: string
+          pattern: '^\+7\d{10}$'
+        date:
+          type: string
+          format: date
+          description: От завтрашнего дня до +365 дней по времени Ульяновска (UTC+4)
+        guestsCount:
+          type: integer
+          minimum: 1
+          maximum: 200
+        eventType:
+          type: string
+          enum: [hall, banquet]
+          description: hall для кнопок «Забронировать…», banquet для кнопок «Заказать…»
+        hallId:
+          type: string
+          enum: [big, main, small]
+          description: Не передаётся, если гость выбрал «Подберите сами»
+        comment:
+          type: string
+          maxLength: 2000
+        captchaToken:
+          type: string
+          minLength: 1
+    BookingRequestCreated:
+      type: object
+      required: [id, status, createdAt]
+      properties:
+        id:
+          type: string
+        status:
+          type: string
+          enum: [pending]
+        createdAt:
+          type: string
+          format: date-time
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          enum: [BAD_REQUEST, VALIDATION_ERROR, CAPTCHA_FAILED, RATE_LIMITED, INTERNAL_ERROR]
+        message:
+          type: string
+          description: Текст для пользователя
+        fields:
+          type: object
+          additionalProperties:
+            type: string
+          description: Ошибки по полям; ключи совпадают с именами полей запроса
